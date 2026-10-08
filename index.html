@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>خريطة بيش - جازان</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    .buttons {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: bold;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .danger {
+      color: #b00020;
+    }
+
+    .saher-marker {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #d71920;
+      color: white;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .info {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      left: 15px;
+      z-index: 1000;
+      background: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      text-align: center;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <div class="buttons">
+    <button onclick="myLocation()">📍 موقعي الآن</button>
+    <button onclick="recordLocation()">📌 سجل هنا</button>
+    <button onclick="manualPin()">📌 دبوس يدوي</button>
+    <button class="danger" onclick="deleteAll()">🗑️ حذف جميع الدبابيس</button>
+  </div>
+
+  <div class="info">
+    خريطة شخصية — الدبابيس التي تضيفها أنت فقط
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+
+    // موقع تقريبي في منتصف طريق بيش - جازان
+    const map = L.map('map').setView([17.15, 42.56], 9);
+
+    L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }
+    ).addTo(map);
+
+
+    // تخزين الدبابيس داخل المتصفح
+    const STORAGE_KEY = 'bish_jazan_saher_v1';
+
+    let pins = JSON.parse(
+      localStorage.getItem(STORAGE_KEY) || '[]'
+    );
+
+
+    // شكل دبوس ساهر
+    const saherIcon = L.divIcon({
+      className: '',
+      html: '<div class="saher-marker">س</div>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+
+    // إضافة دبوس للخريطة
+    function addPin(lat, lng) {
+
+      const marker = L.marker([lat, lng], {
+        icon: saherIcon
+      }).addTo(map);
+
+      marker.bindPopup(
+        '<b>📌 موقع مسجل</b><br>' +
+        'خط العرض: ' + lat.toFixed(6) + '<br>' +
+        'خط الطول: ' + lng.toFixed(6)
+      );
+
+      pins.push({
+        lat: lat,
+        lng: lng,
+        time: new Date().toISOString()
+      });
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(pins)
+      );
+    }
+
+
+    // إعادة إظهار الدبابيس المحفوظة
+    function loadPins() {
+
+      pins.forEach(function(pin) {
+
+        const marker = L.marker(
+          [pin.lat, pin.lng],
+          { icon: saherIcon }
+        ).addTo(map);
+
+        marker.bindPopup(
+          '<b>📌 موقع مسجل</b><br>' +
+          'خط العرض: ' + pin.lat.toFixed(6) + '<br>' +
+          'خط الطول: ' + pin.lng.toFixed(6)
+        );
+
+      });
+
+    }
+
+    loadPins();
+
+
+    // الحصول على الموقع الحالي
+    function getGPS(callback) {
+
+      if (!navigator.geolocation) {
+        alert('هذا المتصفح لا يدعم تحديد الموقع.');
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+
+        function(position) {
+
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          callback(lat, lng);
+
+        },
+
+        function(error) {
+
+          alert(
+            'تعذر الحصول على موقعك.\n\n' +
+            'تأكد من السماح للموقع في Safari.'
+          );
+
+        },
+
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+
+      );
+
+    }
+
+
+    // زر موقعي الآن
+    function myLocation() {
+
+      getGPS(function(lat, lng) {
+
+        map.setView([lat, lng], 17);
+
+        L.circleMarker(
+          [lat, lng],
+          {
+            radius: 8,
+            color: 'blue',
+            fillColor: 'blue',
+            fillOpacity: 0.8
+          }
+        ).addTo(map);
+
+      });
+
+    }
+
+
+    // تسجيل موقع GPS الحالي
+    function recordLocation() {
+
+      getGPS(function(lat, lng) {
+
+        addPin(lat, lng);
+
+        map.setView([lat, lng], 17);
+
+        alert('تم تسجيل الموقع بنجاح 📌');
+
+      });
+
+    }
+
+
+    // إضافة دبوس يدوي
+    function manualPin() {
+
+      alert('اضغط على الخريطة في المكان الذي تريد تسجيله.');
+
+      map.once('click', function(e) {
+
+        addPin(
+          e.latlng.lat,
+          e.latlng.lng
+        );
+
+        alert('تم تسجيل الدبوس 📌');
+
+      });
+
+    }
+
+
+    // حذف جميع الدبابيس
+    function deleteAll() {
+
+      if (
+        confirm(
+          'هل أنت متأكد من حذف جميع الدبابيس؟'
+        )
+      ) {
+
+        localStorage.removeItem(STORAGE_KEY);
+
+        location.reload();
+
+      }
+
+    }
+
+  </script>
+
+</body>
+</html>
